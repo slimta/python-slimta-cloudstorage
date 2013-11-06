@@ -36,6 +36,7 @@ happening in the same process, *Cloud Queues* is unnecessary.
                               region='IAD')
     cloud_files = RackspaceCloudFiles(auth)
     cloud_queues = RackspaceCloudQueues(auth)
+
     storage = CloudStorage(cloud_files, cloud_queues)
 
 .. _Rackspace Cloud: http://www.rackspace.com/cloud/
@@ -49,14 +50,14 @@ from __future__ import absolute_import
 import cPickle
 import uuid
 import json
-from urlparse import urlsplit
+from urlparse import urlsplit, urljoin
 from urllib import urlencode
 from functools import partial
 
 import gevent
 from socket import getfqdn
 
-from slimta.http import HTTPConnection, HTTPSConnection
+from slimta.http import get_connection
 from slimta import logging
 from . import CloudStorageError
 
@@ -66,18 +67,6 @@ log = logging.getHttpLogger(__name__)
 
 _DEFAULT_AUTH_ENDPOINT = 'https://identity.api.rackspacecloud.com/v2.0/'
 _DEFAULT_CLIENT_ID = uuid.uuid5(uuid.NAMESPACE_DNS, getfqdn())
-
-
-def _get_connection(parsed_url, tls=None):
-    host = parsed_url.netloc or 'localhost'
-    host = host.rsplit(':', 1)[0]
-    port = parsed_url.port
-    if tls and parsed_url.scheme == 'https':
-        conn = HTTPSConnection(host, port, strict=True,
-                               **tls)
-    else:
-        conn = HTTPConnection(host, port, strict=True)
-    return conn
 
 
 class RackspaceError(CloudStorageError):
@@ -136,14 +125,18 @@ class RackspaceCloudAuth(object):
                    not given, the first region returned is used.
     :param timeout: Timeout, in seconds, for requests to the Cloud Auth API to
                     create a new token for the session.
+    :param tls: Optional dictionary of TLS settings passed directly as keyword
+                arguments to :class:`gevent.ssl.SSLSocket`. This is only used
+                for URLs with the ``https`` scheme.
 
     """
 
     def __init__(self, credentials, endpoint=_DEFAULT_AUTH_ENDPOINT,
-                 region=None, timeout=None):
+                 region=None, timeout=None, tls=None):
         super(RackspaceCloudAuth, self).__init__()
         self.timeout = timeout
         self.region = region
+        self.tls = tls or {}
         self.token_func = None
         self._token_id = None
 
@@ -175,8 +168,9 @@ class RackspaceCloudAuth(object):
         self.files_endpoint = None
 
     def _get_token(self, url, payload):
-        parsed_url = urlsplit(url, 'http')
-        conn = _get_connection(parsed_url)
+        full_url = urljoin(url, 'tokens')
+        parsed_url = urlsplit(full_url, 'http')
+        conn = get_connection(parsed_url, self.tls)
         json_payload = json.dumps(payload)
         headers = [('Host', parsed_url.hostname),
                    ('Content-Type', 'application/json'),
@@ -203,14 +197,12 @@ class RackspaceCloudAuth(object):
         for service in payload['access']['serviceCatalog']:
             if service['type'] == 'object-store':
                 for endpoint in service['endpoints']:
-                    if not self.region or \
-                            endpoint['publicURL'] == self.region:
+                    if not self.region or endpoint['region'] == self.region:
                         files_endpoint = endpoint['publicURL']
                         break
-            if service['type'] == 'rax:queue':
+            if service['type'] == 'rax:queues':
                 for endpoint in service['endpoints']:
-                    if not self.region or \
-                            endpoint['publicURL'] == self.region:
+                    if not self.region or endpoint['region'] == self.region:
                         queues_endpoint = endpoint['publicURL']
                         break
         return token_id, queues_endpoint, files_endpoint
@@ -259,27 +251,31 @@ class RackspaceCloudFiles(object):
                       container will be named with random UUID strings.
     :param timeout: Timeout, in seconds, for all requests to the Cloud Files API
                     to return before an exception is thrown.
+    :param tls: Optional dictionary of TLS settings passed directly as keyword
+                arguments to :class:`gevent.ssl.SSLSocket`. This is only used
+                for URLs with the ``https`` scheme.
 
     """
 
-    def __init__(self, auth, container='slimta-queue', timeout=None):
+    def __init__(self, auth, container='slimta-queue', timeout=None, tls=None):
         super(RackspaceCloudFiles, self).__init__()
         self.auth = auth
         self.container = container
         self.timeout = timeout
+        self.tls = tls or {}
 
     def _get_files_url(self, files_id=None):
-        url = '{0}/{1}'.format(self.auth.files_endpoint, self.container)
+        url = urljoin(self.auth.files_endpoint, self.container)
         if files_id:
-            url += '/{0}'.format(files_id)
+            url = urljoin(url, files_id)
         return url
 
-    def write_message(self, envelope, timestamp):
+    def write_message(self, envelope, timestamp, retry=False):
         envelope_raw = cPickle.dumps(envelope, cPickle.HIGHEST_PROTOCOL)
         files_id = str(uuid.uuid4())
         url = self._get_files_url(files_id)
         parsed_url = urlsplit(url, 'http')
-        conn = _get_connection(parsed_url)
+        conn = get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('Content-Length', str(len(envelope_raw))),
                    ('X-Object-Meta-Timestamp', json.dumps(timestamp)),
@@ -294,14 +290,17 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status != 201:
+            if res.status == 401 and not retry:
+                self.auth.create_token()
+                return self.write_message(envelope, timestamp, retry=True)
+            elif res.status != 201:
                 raise RackspaceResponseError(res)
             return files_id
 
-    def _write_message_meta(self, files_id, meta_headers):
+    def _write_message_meta(self, files_id, meta_headers, retry=False):
         url = self._get_files_url(files_id)
         parsed_url = urlsplit(url, 'http')
-        conn = _get_connection(parsed_url)
+        conn = get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('X-Auth-Token', self.auth.token_id)] + meta_headers
         with gevent.Timeout(self.timeout):
@@ -313,7 +312,11 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status != 202:
+            if res.status == 401 and not retry:
+                self.auth.create_token()
+                return self._write_message_meta(files_id, meta_headers,
+                                                retry=True)
+            elif res.status != 202:
                 raise RackspaceResponseError(res)
 
     def set_message_meta(self, files_id, timestamp=None, attempts=None):
@@ -326,10 +329,10 @@ class RackspaceCloudFiles(object):
             meta_headers.append(('X-Object-Meta-Attempts', attempts_raw))
         return self._write_message_meta(files_id, meta_headers)
 
-    def delete_message(self, files_id):
+    def delete_message(self, files_id, retry=False):
         url = self._get_files_url(files_id)
         parsed_url = urlsplit(url, 'http')
-        conn = _get_connection(parsed_url)
+        conn = get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('X-Auth-Token', self.auth.token_id)]
         with gevent.Timeout(self.timeout):
@@ -341,13 +344,15 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status != 204:
+            if res.status == 401 and not retry:
+                return self.delete_message(files_id, retry=True)
+            elif res.status != 204:
                 raise RackspaceResponseError(res)
 
-    def get_message(self, files_id, only_meta=False):
+    def get_message(self, files_id, only_meta=False, retry=False):
         url = self._get_files_url(files_id)
         parsed_url = urlsplit(url, 'http')
-        conn = _get_connection(parsed_url)
+        conn = get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('X-Auth-Token', self.auth.token_id)]
         method = 'HEAD' if only_meta else 'GET'
@@ -360,7 +365,10 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status != 200:
+            if res.status == 401 and not retry:
+                self.auth.create_token()
+                return self.get_message(files_id, only_meta, retry=True)
+            elif res.status != 200:
                 raise RackspaceResponseError(res)
             timestamp = json.loads(res.getheader('X-Object-Meta-Timestamp'))
             attempts = json.loads(res.getheader('X-Object-Meta-Attempts'))
@@ -373,10 +381,10 @@ class RackspaceCloudFiles(object):
     def get_message_meta(self, files_id):
         return self.get_message(files_id, only_meta=True)
 
-    def _list_messages_page(self, marker=None):
+    def _list_messages_page(self, marker=None, retry=False):
         url = self._get_files_url()
         parsed_url = urlsplit(url, 'http')
-        conn = _get_connection(parsed_url)
+        conn = get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('X-Auth-Token', self.auth.token_id)]
         query = {'limit': '1000'}
@@ -392,7 +400,10 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status not in (200, 204):
+            if res.status == 401 and not retry:
+                self.auth.create_token()
+                return self._list_messages_page(marker, retry=True)
+            elif res.status not in (200, 204):
                 raise RackspaceResponseError(res)
             return res.read().splitlines()
 
@@ -426,22 +437,26 @@ class RackspaceCloudQueues(object):
                       :func:`~socket.getfqdn` to be consistent across restarts.
     :param timeout: Timeout, in seconds, for all requests to the Cloud Queues
                     API.
+    :param tls: Optional dictionary of TLS settings passed directly as keyword
+                arguments to :class:`gevent.ssl.SSLSocket`. This is only used
+                for URLs with the ``https`` scheme.
 
     """
 
     def __init__(self, auth, queue_name='slimta-queue', client_id=None,
-                 timeout=None):
+                 timeout=None, tls=None):
         super(RackspaceCloudQueues, self).__init__()
         self.auth = auth
         self.queue_name = queue_name
         self.client_id = client_id or _DEFAULT_CLIENT_ID
         self.timeout = timeout
+        self.tls = tls or {}
 
-    def queue_message(self, storage_id, timestamp):
-        url = '{0}/queues/{1}/messages'.format(self.auth.queues_endpoint,
-                                               self.queue_name)
+    def queue_message(self, storage_id, timestamp, retry=False):
+        url = urljoin(self.auth.queues_endpoint,
+                      'queues/{0}/messages'.format(self.queue_name))
         parsed_url = urlsplit(url, 'http')
-        conn = _get_connection(parsed_url)
+        conn = get_connection(parsed_url, self.tls)
         payload = [{'ttl': 86400,
                     'body': {'timestamp': timestamp,
                              'storage_id': storage_id}}]
@@ -461,14 +476,17 @@ class RackspaceCloudQueues(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status != 201:
+            if res.status == 401 and not retry:
+                self.auth.create_token()
+                return self.queue_message(storage_id, timestamp, retry=True)
+            elif res.status != 201:
                 raise RackspaceResponseError(res)
 
-    def _claim_queued_messages(self):
-        url = '{0}/queues/{1}/claims'.format(self.auth.queues_endpoint,
-                                             self.queue_name)
+    def _claim_queued_messages(self, retry=False):
+        url = urljoin(self.auth.queues_endpoint,
+                      'queues/{0}/claims'.format(self.queue_name))
         parsed_url = urlsplit(url, 'http')
-        conn = _get_connection(parsed_url)
+        conn = get_connection(parsed_url, self.tls)
         json_payload = '{"ttl": 3600, "grace": 3600}'
         headers = [('Host', parsed_url.hostname),
                    ('Client-ID', self.client_id),
@@ -485,7 +503,10 @@ class RackspaceCloudQueues(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status != 201:
+            if res.status == 401 and not retry:
+                self.auth.create_token()
+                return self._claim_queued_messages(retry=True)
+            elif res.status != 201:
                 raise RackspaceResponseError(res)
             messages = json.load(res)
             return [(msg['body'], msg['href']) for msg in messages]
@@ -495,10 +516,10 @@ class RackspaceCloudQueues(object):
         for body, href in messages:
             yield (body['timestamp'], body['storage_id'], href)
 
-    def delete(self, href):
+    def delete(self, href, retry=False):
         url = self.auth.queues_endpoint
         parsed_url = urlsplit(url, 'http')
-        conn = _get_connection(parsed_url)
+        conn = get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('Client-ID', self.client_id),
                    ('Content-Type', 'application/json'),
@@ -513,7 +534,10 @@ class RackspaceCloudQueues(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status != 204:
+            if res.status == 401 and not retry:
+                self.auth.create_token()
+                return self.delete(href, retry=True)
+            elif res.status != 204:
                 raise RackspaceResponseError(res)
 
 
