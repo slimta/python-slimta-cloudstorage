@@ -7,9 +7,9 @@ About
 =====
 
 This extension provides a queue storage mechanism that interfaces with two
-common cloud service providers: Rackspace and Amazon Web Services. For
-Rackspace, [`pyrax`][4] is used to connect to the Cloud Queues and Cloud Files
-services. For AWS, [`boto`][5] is used to connect to S3 and SQS.
+common cloud service providers: [Rackspace Cloud][4] and [Amazon Web
+Services][5]. Communication with both services uses REST APIs over HTTP, so no
+additional dependencies are required.
 
 [![Build Status](http://ci.slimta.org/job/python-slimta-cloudstorage/badge/icon)](http://ci.slimta.org/job/python-slimta-cloudstorage/)
 
@@ -31,7 +31,7 @@ using this extension.
 [1]: http://slimta.org/
 [2]: http://docs.slimta.org/latest/api/extra.cloudstorage.html
 [3]: http://docs.slimta.org/latest/manual/extensions.html#cloud-storage
-[4]: https://github.com/rackspace/pyrax
-[5]: http://aws.amazon.com/sdkforpython/
+[4]: http://www.rackspace.com/cloud/products/
+[5]: http://aws.amazon.com/
 [6]: https://github.com/slimta/python-slimta
 
