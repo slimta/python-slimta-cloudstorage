@@ -26,5 +26,14 @@ with any necessary helper modules.
 
 from __future__ import absolute_import
 
+from slimta.queue import QueueError
+
+
+class CloudStorageError(QueueError):
+    """Base exception for all exceptions in the package.
+
+    """
+    pass
+
 
 # vim:et:fdm=marker:sts=4:sw=4:ts=4
