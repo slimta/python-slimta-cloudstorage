@@ -22,11 +22,21 @@
 """Package containing a module for the different cloud service providers along
 with any necessary helper modules.
 
+.. _Cloud Files: http://www.rackspace.com/cloud/files/
+.. _Cloud Queues: http://www.rackspace.com/cloud/queues/
+.. _S3: http://aws.amazon.com/s3/
+.. _SQS: http://aws.amazon.com/sqs/
+
 """
 
 from __future__ import absolute_import
 
-from slimta.queue import QueueError
+from slimta.queue import QueueError, QueueStorage
+from slimta import logging
+
+__all__ = ['CloudStorageError', 'CloudStorage']
+
+log = logging.getQueueStorageLogger(__name__)
 
 
 class CloudStorageError(QueueError):
@@ -34,6 +44,67 @@ class CloudStorageError(QueueError):
 
     """
     pass
+
+
+class CloudStorage(QueueStorage):
+    """This class implements a :class:`~slimta.queue.QueueStorage` backend that
+    uses cloud services to store messages. It coordinates the storage of
+    messages and metadata (using `Cloud Files`_ or `S3`_) with the optional
+    message queue mechanisms (using `Cloud Queues`_ or `SQS`_) that can alert
+    other *slimta* processes that a new message is available in storage.
+
+    :param storage: The :class:`StorageDriver` object used as the backend for
+                    storing message contents and metadata in the cloud.
+    :param message_queue: The optional :class:`MessageQueueDriver` object used
+                          as the backend for alerting other processes that a new
+                          message is in storage.
+
+    """
+
+    def __init__(self, storage, message_queue=None):
+        super(CloudStorage, self).__init__()
+        self.storage = storage
+        self.queue = message_queue
+
+    def write(self, envelope, timestamp):
+        storage_id = self.storage.write_message(envelope, timestamp)
+        if self.queue:
+            try:
+                self.queue.queue_message(storage_id, timestamp)
+            except Exception:
+                logging.log_exception(__name__)
+        log.write(storage_id, envelope)
+        return storage_id
+
+    def set_timestamp(self, id, timestamp):
+        self.storage.set_message_meta(id, timestamp=timestamp)
+        log.update_meta(id, timestamp=timestamp)
+
+    def increment_attempts(self, id):
+        timestamp, attempts = self.storage.get_message_meta(id)
+        new_attempts = attempts + 1
+        self.storage.set_message_meta(id, attempts=new_attempts)
+        log.update_meta(id, attempts=new_attempts)
+        return new_attempts
+
+    def load(self):
+        return self.storage.list_messages()
+
+    def get(self, id):
+        envelope, timestamp, attempts = self.storage.get_message(id)
+        return envelope, attempts
+
+    def remove(self, id):
+        self.storage.delete_message(id)
+        log.remove(id)
+
+    def wait(self):
+        if self.queue:
+            for timestamp, storage_id, message_id in self.queue.poll():
+                yield (timestamp, storage_id)
+                self.queue.delete(message_id)
+        else:
+            raise NotImplementedError()
 
 
 # vim:et:fdm=marker:sts=4:sw=4:ts=4
