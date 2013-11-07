@@ -50,12 +50,12 @@ from __future__ import absolute_import
 import cPickle
 import uuid
 import json
+from socket import getfqdn
 from urlparse import urlsplit, urljoin
 from urllib import urlencode
 from functools import partial
 
 import gevent
-from socket import getfqdn
 
 from slimta.http import get_connection
 from slimta import logging
@@ -103,7 +103,7 @@ class RackspaceCloudAuth(object):
 
                         If the ``function`` key is defined, it must be a
                         callable that takes no arguments and returns a tuple.
-                        The tuple must contain a token string, a Cloud Queues
+                        The tuple must contain a token string, a Cloud Files
                         service endpoint, and a Cloud Queues service endpoint.
 
                         Otherwise, this dictionary must have a ``username`` key
@@ -134,6 +134,7 @@ class RackspaceCloudAuth(object):
     def __init__(self, credentials, endpoint=_DEFAULT_AUTH_ENDPOINT,
                  region=None, timeout=None, tls=None):
         super(RackspaceCloudAuth, self).__init__()
+        self.get_connection = get_connection
         self.timeout = timeout
         self.region = region
         self.tls = tls or {}
@@ -168,9 +169,9 @@ class RackspaceCloudAuth(object):
         self.files_endpoint = None
 
     def _get_token(self, url, payload):
-        full_url = urljoin(url, 'tokens')
+        full_url = urljoin(url+'/', 'tokens')
         parsed_url = urlsplit(full_url, 'http')
-        conn = get_connection(parsed_url, self.tls)
+        conn = self.get_connection(parsed_url, self.tls)
         json_payload = json.dumps(payload)
         headers = [('Host', parsed_url.hostname),
                    ('Content-Type', 'application/json'),
@@ -205,7 +206,7 @@ class RackspaceCloudAuth(object):
                     if not self.region or endpoint['region'] == self.region:
                         queues_endpoint = endpoint['publicURL']
                         break
-        return token_id, queues_endpoint, files_endpoint
+        return token_id, files_endpoint, queues_endpoint
 
     def _get_token_password(self, url, username, password, tenant_id):
         payload = {'auth': {'passwordCredentials': {'username': username,
@@ -236,7 +237,7 @@ class RackspaceCloudAuth(object):
         token is stored in the :attr:`.token_id` attribute.
 
         """
-        self._token_id, self.queues_endpoint, self.files_endpoint = \
+        self._token_id, self.files_endpoint, self.queues_endpoint = \
             self.token_func()
 
 
@@ -259,15 +260,16 @@ class RackspaceCloudFiles(object):
 
     def __init__(self, auth, container='slimta-queue', timeout=None, tls=None):
         super(RackspaceCloudFiles, self).__init__()
+        self.get_connection = get_connection
         self.auth = auth
         self.container = container
         self.timeout = timeout
         self.tls = tls or {}
 
     def _get_files_url(self, files_id=None):
-        url = urljoin(self.auth.files_endpoint, self.container)
+        url = urljoin(self.auth.files_endpoint+'/', self.container)
         if files_id:
-            url = urljoin(url, files_id)
+            url = urljoin(url+'/', files_id)
         return url
 
     def write_message(self, envelope, timestamp, retry=False):
@@ -275,7 +277,7 @@ class RackspaceCloudFiles(object):
         files_id = str(uuid.uuid4())
         url = self._get_files_url(files_id)
         parsed_url = urlsplit(url, 'http')
-        conn = get_connection(parsed_url, self.tls)
+        conn = self.get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('Content-Length', str(len(envelope_raw))),
                    ('X-Object-Meta-Timestamp', json.dumps(timestamp)),
@@ -300,7 +302,7 @@ class RackspaceCloudFiles(object):
     def _write_message_meta(self, files_id, meta_headers, retry=False):
         url = self._get_files_url(files_id)
         parsed_url = urlsplit(url, 'http')
-        conn = get_connection(parsed_url, self.tls)
+        conn = self.get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('X-Auth-Token', self.auth.token_id)] + meta_headers
         with gevent.Timeout(self.timeout):
@@ -332,7 +334,7 @@ class RackspaceCloudFiles(object):
     def delete_message(self, files_id, retry=False):
         url = self._get_files_url(files_id)
         parsed_url = urlsplit(url, 'http')
-        conn = get_connection(parsed_url, self.tls)
+        conn = self.get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('X-Auth-Token', self.auth.token_id)]
         with gevent.Timeout(self.timeout):
@@ -352,7 +354,7 @@ class RackspaceCloudFiles(object):
     def get_message(self, files_id, only_meta=False, retry=False):
         url = self._get_files_url(files_id)
         parsed_url = urlsplit(url, 'http')
-        conn = get_connection(parsed_url, self.tls)
+        conn = self.get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('X-Auth-Token', self.auth.token_id)]
         method = 'HEAD' if only_meta else 'GET'
@@ -381,16 +383,16 @@ class RackspaceCloudFiles(object):
     def get_message_meta(self, files_id):
         return self.get_message(files_id, only_meta=True)
 
-    def _list_messages_page(self, marker=None, retry=False):
+    def _list_messages_page(self, marker, retry=False):
         url = self._get_files_url()
         parsed_url = urlsplit(url, 'http')
-        conn = get_connection(parsed_url, self.tls)
+        conn = self.get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('X-Auth-Token', self.auth.token_id)]
-        query = {'limit': '1000'}
+        query = urlencode({'limit': '1000'})
         if marker:
-            query['marker'] = marker
-        selector = '{0}?{1}'.format(parsed_url.path, urlencode(query))
+            query += '&{0}'.format(urlencode({'marker': marker}))
+        selector = '{0}?{1}'.format(parsed_url.path, query)
         with gevent.Timeout(self.timeout):
             log.request(conn, 'GET', selector, headers)
             conn.putrequest('GET', selector)
@@ -414,7 +416,7 @@ class RackspaceCloudFiles(object):
             ids_batch = self._list_messages_page(marker)
             try:
                 marker = ids_batch[-1]
-            except KeyError:
+            except IndexError:
                 break
             ids.extend(ids_batch)
         for id in ids:
@@ -437,6 +439,8 @@ class RackspaceCloudQueues(object):
                       :func:`~socket.getfqdn` to be consistent across restarts.
     :param timeout: Timeout, in seconds, for all requests to the Cloud Queues
                     API.
+    :param poll_pause: The time, in seconds, to idle between attempts to poll
+                       the queue for new messages.
     :param tls: Optional dictionary of TLS settings passed directly as keyword
                 arguments to :class:`gevent.ssl.SSLSocket`. This is only used
                 for URLs with the ``https`` scheme.
@@ -444,19 +448,21 @@ class RackspaceCloudQueues(object):
     """
 
     def __init__(self, auth, queue_name='slimta-queue', client_id=None,
-                 timeout=None, tls=None):
+                 timeout=None, poll_pause=1.0, tls=None):
         super(RackspaceCloudQueues, self).__init__()
+        self.get_connection = get_connection
         self.auth = auth
         self.queue_name = queue_name
         self.client_id = client_id or _DEFAULT_CLIENT_ID
         self.timeout = timeout
+        self.poll_pause = poll_pause
         self.tls = tls or {}
 
     def queue_message(self, storage_id, timestamp, retry=False):
-        url = urljoin(self.auth.queues_endpoint,
+        url = urljoin(self.auth.queues_endpoint+'/',
                       'queues/{0}/messages'.format(self.queue_name))
         parsed_url = urlsplit(url, 'http')
-        conn = get_connection(parsed_url, self.tls)
+        conn = self.get_connection(parsed_url, self.tls)
         payload = [{'ttl': 86400,
                     'body': {'timestamp': timestamp,
                              'storage_id': storage_id}}]
@@ -483,10 +489,10 @@ class RackspaceCloudQueues(object):
                 raise RackspaceResponseError(res)
 
     def _claim_queued_messages(self, retry=False):
-        url = urljoin(self.auth.queues_endpoint,
+        url = urljoin(self.auth.queues_endpoint+'/',
                       'queues/{0}/claims'.format(self.queue_name))
         parsed_url = urlsplit(url, 'http')
-        conn = get_connection(parsed_url, self.tls)
+        conn = self.get_connection(parsed_url, self.tls)
         json_payload = '{"ttl": 3600, "grace": 3600}'
         headers = [('Host', parsed_url.hostname),
                    ('Client-ID', self.client_id),
@@ -516,10 +522,13 @@ class RackspaceCloudQueues(object):
         for body, href in messages:
             yield (body['timestamp'], body['storage_id'], href)
 
+    def sleep(self):
+        gevent.sleep(self.poll_pause)
+
     def delete(self, href, retry=False):
         url = self.auth.queues_endpoint
         parsed_url = urlsplit(url, 'http')
-        conn = get_connection(parsed_url, self.tls)
+        conn = self.get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
                    ('Client-ID', self.client_id),
                    ('Content-Type', 'application/json'),

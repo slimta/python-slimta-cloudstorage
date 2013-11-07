@@ -51,58 +51,60 @@ class CloudStorage(QueueStorage):
     uses cloud services to store messages. It coordinates the storage of
     messages and metadata (using `Cloud Files`_ or `S3`_) with the optional
     message queue mechanisms (using `Cloud Queues`_ or `SQS`_) that can alert
-    other *slimta* processes that a new message is available in storage.
+    other *slimta* processes that a new message is available in the object
+    store.
 
-    :param storage: The :class:`StorageDriver` object used as the backend for
-                    storing message contents and metadata in the cloud.
+    :param object_store: The :class:`StorageDriver` object used as the backend
+                         for storing message contents and metadata in the cloud.
     :param message_queue: The optional :class:`MessageQueueDriver` object used
                           as the backend for alerting other processes that a new
-                          message is in storage.
+                          message is in the object store.
 
     """
 
-    def __init__(self, storage, message_queue=None):
+    def __init__(self, object_store, message_queue=None):
         super(CloudStorage, self).__init__()
-        self.storage = storage
-        self.queue = message_queue
+        self.obj_store = object_store
+        self.msg_queue = message_queue
 
     def write(self, envelope, timestamp):
-        storage_id = self.storage.write_message(envelope, timestamp)
-        if self.queue:
+        storage_id = self.obj_store.write_message(envelope, timestamp)
+        if self.msg_queue:
             try:
-                self.queue.queue_message(storage_id, timestamp)
+                self.msg_queue.queue_message(storage_id, timestamp)
             except Exception:
                 logging.log_exception(__name__)
         log.write(storage_id, envelope)
         return storage_id
 
     def set_timestamp(self, id, timestamp):
-        self.storage.set_message_meta(id, timestamp=timestamp)
+        self.obj_store.set_message_meta(id, timestamp=timestamp)
         log.update_meta(id, timestamp=timestamp)
 
     def increment_attempts(self, id):
-        timestamp, attempts = self.storage.get_message_meta(id)
+        timestamp, attempts = self.obj_store.get_message_meta(id)
         new_attempts = attempts + 1
-        self.storage.set_message_meta(id, attempts=new_attempts)
+        self.obj_store.set_message_meta(id, attempts=new_attempts)
         log.update_meta(id, attempts=new_attempts)
         return new_attempts
 
     def load(self):
-        return self.storage.list_messages()
+        return self.obj_store.list_messages()
 
     def get(self, id):
-        envelope, timestamp, attempts = self.storage.get_message(id)
+        envelope, timestamp, attempts = self.obj_store.get_message(id)
         return envelope, attempts
 
     def remove(self, id):
-        self.storage.delete_message(id)
+        self.obj_store.delete_message(id)
         log.remove(id)
 
     def wait(self):
-        if self.queue:
-            for timestamp, storage_id, message_id in self.queue.poll():
+        if self.msg_queue:
+            for timestamp, storage_id, message_id in self.msg_queue.poll():
                 yield (timestamp, storage_id)
-                self.queue.delete(message_id)
+                self.msg_queue.delete(message_id)
+            self.msg_queue.sleep()
         else:
             raise NotImplementedError()
 
