@@ -3,8 +3,7 @@ import json
 
 from mox import MoxTestBase, IsA, Func
 
-from slimta.cloudstorage.rackspace import RackspaceResponseError, \
-        RackspaceCloudAuth
+from slimta.cloudstorage.rackspace import RackspaceError, RackspaceCloudAuth
 
 
 class TestRackspaceCloudAuth(MoxTestBase):
@@ -35,7 +34,7 @@ class TestRackspaceCloudAuth(MoxTestBase):
         res = self.mox.CreateMockAnything()
         res.status = 400
         res.reason = 'Bad Request'
-        exc = RackspaceResponseError(res)
+        exc = RackspaceError(res)
         self.assertEqual("Received '400 Bad Request' from the API.", str(exc))
         self.assertEqual(res, exc.response)
 

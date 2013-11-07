@@ -24,7 +24,7 @@ Cloud`_ hosting service. It requires an account as well as the `Cloud Files`_
 and optionally the `Cloud Queues`_ services.
 
 For each queued message, the contents and metadata of the message are written to
-*Cloud Files*. Upon success, a reference to the message are injected into *Cloud
+*Cloud Files*. Upon success, a reference to the message is injected into *Cloud
 Queues* as a new message.
 
 The *Cloud Queues* service is only necessary for alerting separate *slimta*
@@ -61,7 +61,8 @@ from slimta.http import get_connection
 from slimta import logging
 from . import CloudStorageError
 
-__all__ = ['RackspaceCloudAuth', 'RackspaceCloudFiles', 'RackspaceCloudQueues']
+__all__ = ['RackspaceError', 'RackspaceCloudAuth', 'RackspaceCloudFiles',
+           'RackspaceCloudQueues']
 
 log = logging.getHttpLogger(__name__)
 
@@ -70,14 +71,6 @@ _DEFAULT_CLIENT_ID = uuid.uuid5(uuid.NAMESPACE_DNS, getfqdn())
 
 
 class RackspaceError(CloudStorageError):
-    """Base exception for all errors thrown by the Rackspace queue storage
-    backend.
-
-    """
-    pass
-
-
-class RackspaceResponseError(RackspaceError):
     """Thrown when an unexpected status has been returned from a Rackspace
     Cloud API request and the engine does not know how to continue.
 
@@ -86,7 +79,7 @@ class RackspaceResponseError(RackspaceError):
     def __init__(self, response):
         status = '{0!s} {1}'.format(response.status, response.reason)
         msg = 'Received {0!r} from the API.'.format(status)
-        super(RackspaceResponseError, self).__init__(msg)
+        super(RackspaceError, self).__init__(msg)
 
         #: The `~httplib.HTTPResponse` object that triggered the
         #: exception.
@@ -190,7 +183,7 @@ class RackspaceCloudAuth(object):
 
     def _get_token_response(self, response):
         if response.status != 200:
-            raise RackspaceResponseError(response)
+            raise RackspaceError(response)
         payload = json.load(response)
         token_id = payload['access']['token']['id']
         files_endpoint = None
@@ -296,7 +289,7 @@ class RackspaceCloudFiles(object):
                 self.auth.create_token()
                 return self.write_message(envelope, timestamp, retry=True)
             elif res.status != 201:
-                raise RackspaceResponseError(res)
+                raise RackspaceError(res)
             return files_id
 
     def _write_message_meta(self, files_id, meta_headers, retry=False):
@@ -319,7 +312,7 @@ class RackspaceCloudFiles(object):
                 return self._write_message_meta(files_id, meta_headers,
                                                 retry=True)
             elif res.status != 202:
-                raise RackspaceResponseError(res)
+                raise RackspaceError(res)
 
     def set_message_meta(self, files_id, timestamp=None, attempts=None):
         meta_headers = []
@@ -349,7 +342,7 @@ class RackspaceCloudFiles(object):
             if res.status == 401 and not retry:
                 return self.delete_message(files_id, retry=True)
             elif res.status != 204:
-                raise RackspaceResponseError(res)
+                raise RackspaceError(res)
 
     def get_message(self, files_id, only_meta=False, retry=False):
         url = self._get_files_url(files_id)
@@ -371,7 +364,7 @@ class RackspaceCloudFiles(object):
                 self.auth.create_token()
                 return self.get_message(files_id, only_meta, retry=True)
             elif res.status != 200:
-                raise RackspaceResponseError(res)
+                raise RackspaceError(res)
             timestamp = json.loads(res.getheader('X-Object-Meta-Timestamp'))
             attempts = json.loads(res.getheader('X-Object-Meta-Attempts'))
             if only_meta:
@@ -406,7 +399,7 @@ class RackspaceCloudFiles(object):
                 self.auth.create_token()
                 return self._list_messages_page(marker, retry=True)
             elif res.status not in (200, 204):
-                raise RackspaceResponseError(res)
+                raise RackspaceError(res)
             return res.read().splitlines()
 
     def list_messages(self):
@@ -486,7 +479,7 @@ class RackspaceCloudQueues(object):
                 self.auth.create_token()
                 return self.queue_message(storage_id, timestamp, retry=True)
             elif res.status != 201:
-                raise RackspaceResponseError(res)
+                raise RackspaceError(res)
 
     def _claim_queued_messages(self, retry=False):
         url = urljoin(self.auth.queues_endpoint+'/',
@@ -513,7 +506,7 @@ class RackspaceCloudQueues(object):
                 self.auth.create_token()
                 return self._claim_queued_messages(retry=True)
             elif res.status != 201:
-                raise RackspaceResponseError(res)
+                raise RackspaceError(res)
             messages = json.load(res)
             return [(msg['body'], msg['href']) for msg in messages]
 
@@ -547,7 +540,7 @@ class RackspaceCloudQueues(object):
                 self.auth.create_token()
                 return self.delete(href, retry=True)
             elif res.status != 204:
-                raise RackspaceResponseError(res)
+                raise RackspaceError(res)
 
 
 # vim:et:fdm=marker:sts=4:sw=4:ts=4
