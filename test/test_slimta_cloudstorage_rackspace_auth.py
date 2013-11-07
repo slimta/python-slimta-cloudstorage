@@ -3,7 +3,8 @@ import json
 
 from mox import MoxTestBase, IsA, Func
 
-from slimta.cloudstorage.rackspace import RackspaceCloudAuth
+from slimta.cloudstorage.rackspace import RackspaceResponseError, \
+        RackspaceCloudAuth
 
 
 class TestRackspaceCloudAuth(MoxTestBase):
@@ -29,6 +30,14 @@ class TestRackspaceCloudAuth(MoxTestBase):
                              ]},
                     ],
             }}
+
+    def test_response_error(self):
+        res = self.mox.CreateMockAnything()
+        res.status = 400
+        res.reason = 'Bad Request'
+        exc = RackspaceResponseError(res)
+        self.assertEqual("Received '400 Bad Request' from the API.", str(exc))
+        self.assertEqual(res, exc.response)
 
     def test_create_token_func(self):
         func = self.mox.CreateMockAnything()
