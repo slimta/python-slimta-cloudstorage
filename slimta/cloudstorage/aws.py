@@ -37,13 +37,14 @@ avoid performance issues, you must use gevent `monkey patching`_ before using
 it!
 
 ::
+
     from gevent import monkey; monkey.patch_all()
 
     s3_conn = boto.connect_s3()
     s3_bucket = s3_conn.get_bucket('slimta-queue')
     s3 = SimpleStorageService(s3_bucket)
 
-    sqs_conn = boto.sqs.connect_to_region("us-west-2")
+    sqs_conn = boto.sqs.connect_to_region('us-west-2')
     sqs_queue = sqs_conn.create_queue('slimta-queue')
     sqs = SimpleQueueService(sqs_queue)
 
@@ -80,7 +81,7 @@ class SimpleStorageService(object):
     :param bucket: The S3 bucket object in which all message contents and
                    metadata will be written. Each created S3 object will use a
                    :py:mod:`uuid` string as its key.
-    :type bucket: :boto:class:`boto.s3.bucket.Bucket`
+    :type bucket: :class:`boto.s3.bucket.Bucket`
     :param timeout: Timeout, in seconds, before requests to *S3* will fail and
                     raise an exception.
 
@@ -155,7 +156,7 @@ class SimpleQueueService(object):
 
     :param queue: The SQS queue object in which each new message corresponds to
                   a new object in storage.
-    :type queue: :boto:class:`boto.sqs.queue.Queue`
+    :type queue: :class:`boto.sqs.queue.Queue`
     :param timeout: Timeout, in seconds, before requests to *S3* will fail and
                     raise an exception.
     :param poll_pause: The time, in seconds, to idle between attempts to poll

@@ -23,15 +23,16 @@
 Cloud`_ hosting service. It requires an account as well as the `Cloud Files`_
 and optionally the `Cloud Queues`_ services.
 
-For each queued message, the contents and metadata of the message are written to
-*Cloud Files*. Upon success, a reference to the message is injected into *Cloud
-Queues* as a new message.
+For each queued message, the contents and metadata of the message are written
+to *Cloud Files*. Upon success, a reference to the message is injected into
+*Cloud Queues* as a new message.
 
 The *Cloud Queues* service is only necessary for alerting separate *slimta*
 processes that a new message has been queued. If reception and relaying are
 happening in the same process, *Cloud Queues* is unnecessary.
 
 ::
+
     auth = RackspaceCloudAuth({'username': 'slimta', 'api_key': 'xxxxxx'},
                               region='IAD')
     cloud_files = RackspaceCloudFiles(auth)
@@ -81,7 +82,7 @@ class RackspaceError(CloudStorageError):
         msg = 'Received {0!r} from the API.'.format(status)
         super(RackspaceError, self).__init__(msg)
 
-        #: The `~httplib.HTTPResponse` object that triggered the
+        #: The :class:`~httplib.HTTPResponse` object that triggered the
         #: exception.
         self.response = response
 
