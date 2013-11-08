@@ -32,6 +32,7 @@ class TestRackspaceCloudFiles(MoxTestBase):
         files.get_connection(IsA(tuple), {}).AndReturn(conn)
         conn.putrequest('PUT', Func(_is_files_path))
         conn.putheader('Host', 'files')
+        conn.putheader('Content-Type', 'application/octet-stream')
         conn.putheader('Content-Length', str(len(self.pickled_env)))
         conn.putheader('X-Object-Meta-Timestamp', '1234.0')
         conn.putheader('X-Object-Meta-Attempts', '0')

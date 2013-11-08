@@ -67,7 +67,7 @@ __all__ = ['RackspaceError', 'RackspaceCloudAuth', 'RackspaceCloudFiles',
 log = logging.getHttpLogger(__name__)
 
 _DEFAULT_AUTH_ENDPOINT = 'https://identity.api.rackspacecloud.com/v2.0/'
-_DEFAULT_CLIENT_ID = uuid.uuid5(uuid.NAMESPACE_DNS, getfqdn())
+_DEFAULT_CLIENT_ID = str(uuid.uuid5(uuid.NAMESPACE_DNS, getfqdn()))
 
 
 class RackspaceError(CloudStorageError):
@@ -269,9 +269,10 @@ class RackspaceCloudFiles(object):
         envelope_raw = cPickle.dumps(envelope, cPickle.HIGHEST_PROTOCOL)
         files_id = str(uuid.uuid4())
         url = self._get_files_url(files_id)
-        parsed_url = urlsplit(url, 'http')
+        parsed_url = urlsplit(str(url), 'http')
         conn = self.get_connection(parsed_url, self.tls)
         headers = [('Host', parsed_url.hostname),
+                   ('Content-Type', 'application/octet-stream'),
                    ('Content-Length', str(len(envelope_raw))),
                    ('X-Object-Meta-Timestamp', json.dumps(timestamp)),
                    ('X-Object-Meta-Attempts', '0'),
@@ -363,6 +364,8 @@ class RackspaceCloudFiles(object):
             if res.status == 401 and not retry:
                 self.auth.create_token()
                 return self.get_message(files_id, only_meta, retry=True)
+            if res.status == 404:
+                raise KeyError(files_id)
             elif res.status != 200:
                 raise RackspaceError(res)
             timestamp = json.loads(res.getheader('X-Object-Meta-Timestamp'))
@@ -398,9 +401,12 @@ class RackspaceCloudFiles(object):
             if res.status == 401 and not retry:
                 self.auth.create_token()
                 return self._list_messages_page(marker, retry=True)
-            elif res.status not in (200, 204):
+            if res.status == 200:
+                return res.read().splitlines()
+            elif res.status == 204:
+                return []
+            else:
                 raise RackspaceError(res)
-            return res.read().splitlines()
 
     def list_messages(self):
         marker = None
@@ -505,10 +511,13 @@ class RackspaceCloudQueues(object):
             if res.status == 401 and not retry:
                 self.auth.create_token()
                 return self._claim_queued_messages(retry=True)
-            elif res.status != 201:
+            if res.status == 201:
+                messages = json.load(res)
+                return [(msg['body'], msg['href']) for msg in messages]
+            elif res.status == 204:
+                return []
+            else:
                 raise RackspaceError(res)
-            messages = json.load(res)
-            return [(msg['body'], msg['href']) for msg in messages]
 
     def poll(self):
         messages = self._claim_queued_messages()
