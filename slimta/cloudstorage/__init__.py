@@ -54,11 +54,17 @@ class CloudStorage(QueueStorage):
     other *slimta* processes that a new message is available in the object
     store.
 
-    :param object_store: The :class:`StorageDriver` object used as the backend
-                         for storing message contents and metadata in the cloud.
-    :param message_queue: The optional :class:`MessageQueueDriver` object used
+    :param object_store: The object used as the backend for storing message
+                         contents and metadata in the cloud. Currently this can
+                         be an instance of
+                         :class:`~rackspace.RackspaceCloudFiles` or
+                         :class:`~aws.SimpleStorageService`.
+    :param message_queue: The optional object used
                           as the backend for alerting other processes that a new
-                          message is in the object store.
+                          message is in the object store. Currently this can be
+                          an instance of
+                          :class:`~rackspace.RackspaceCloudQueues` or
+                          :class:`~aws.SimpleQueueService`.
 
     """
 
