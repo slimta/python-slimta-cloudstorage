@@ -8,8 +8,7 @@ About
 
 This extension provides a queue storage mechanism that interfaces with two
 common cloud service providers: [Rackspace Cloud][4] and [Amazon Web
-Services][5]. Communication with both services uses REST APIs over HTTP, so no
-additional dependencies are required.
+Services][5].
 
 [![Build Status](http://ci.slimta.org/job/python-slimta-cloudstorage/badge/icon)](http://ci.slimta.org/job/python-slimta-cloudstorage/)
 
