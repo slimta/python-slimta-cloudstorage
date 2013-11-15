@@ -95,9 +95,9 @@ class TestRackspaceCloudFiles(MoxTestBase):
         res.status = 200
         res.reason = 'OK'
         res.getheaders().AndReturn([])
+        res.read().AndReturn(self.pickled_env)
         res.getheader('X-Object-Meta-Timestamp').AndReturn('1234.0')
         res.getheader('X-Object-Meta-Attempts').AndReturn('3')
-        res.read().AndReturn(self.pickled_env)
         self.mox.ReplayAll()
         env, timestamp, attempts = files.get_message('4321')
         self.assertIsInstance(env, Envelope)

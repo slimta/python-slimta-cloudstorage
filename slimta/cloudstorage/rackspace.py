@@ -293,12 +293,12 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status == 401 and not retry:
-                self.auth.create_token()
-                return self.write_message(envelope, timestamp, retry=True)
-            elif res.status != 201:
-                raise RackspaceError(res)
-            return files_id
+        if res.status == 401 and not retry:
+            self.auth.create_token()
+            return self.write_message(envelope, timestamp, retry=True)
+        elif res.status != 201:
+            raise RackspaceError(res)
+        return files_id
 
     def _write_message_meta(self, files_id, meta_headers, retry=False):
         url = self._get_files_url(files_id)
@@ -315,12 +315,11 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status == 401 and not retry:
-                self.auth.create_token()
-                return self._write_message_meta(files_id, meta_headers,
-                                                retry=True)
-            elif res.status != 202:
-                raise RackspaceError(res)
+        if res.status == 401 and not retry:
+            self.auth.create_token()
+            return self._write_message_meta(files_id, meta_headers, retry=True)
+        elif res.status != 202:
+            raise RackspaceError(res)
 
     def set_message_meta(self, files_id, timestamp=None, attempts=None):
         meta_headers = []
@@ -347,10 +346,10 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status == 401 and not retry:
-                return self.delete_message(files_id, retry=True)
-            elif res.status != 204:
-                raise RackspaceError(res)
+        if res.status == 401 and not retry:
+            return self.delete_message(files_id, retry=True)
+        elif res.status != 204:
+            raise RackspaceError(res)
 
     def get_message(self, files_id, only_meta=False, retry=False):
         url = self._get_files_url(files_id)
@@ -368,20 +367,21 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status == 401 and not retry:
-                self.auth.create_token()
-                return self.get_message(files_id, only_meta, retry=True)
-            if res.status == 404:
-                raise KeyError(files_id)
-            elif res.status != 200:
-                raise RackspaceError(res)
-            timestamp = json.loads(res.getheader('X-Object-Meta-Timestamp'))
-            attempts = json.loads(res.getheader('X-Object-Meta-Attempts'))
-            if only_meta:
-                return timestamp, attempts
-            else:
-                envelope = cPickle.loads(res.read())
-                return envelope, timestamp, attempts
+            data = None if only_meta else res.read()
+        if res.status == 401 and not retry:
+            self.auth.create_token()
+            return self.get_message(files_id, only_meta, retry=True)
+        if res.status == 404:
+            raise KeyError(files_id)
+        elif res.status != 200:
+            raise RackspaceError(res)
+        timestamp = json.loads(res.getheader('X-Object-Meta-Timestamp'))
+        attempts = json.loads(res.getheader('X-Object-Meta-Attempts'))
+        if only_meta:
+            return timestamp, attempts
+        else:
+            envelope = cPickle.loads(data)
+            return envelope, timestamp, attempts
 
     def get_message_meta(self, files_id):
         return self.get_message(files_id, only_meta=True)
@@ -405,17 +405,18 @@ class RackspaceCloudFiles(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status == 401 and not retry:
-                self.auth.create_token()
-                return self._list_messages_page(marker, retry=True)
-            if res.status == 200:
-                lines = res.read().splitlines()
-                return [line for line in lines
-                        if line.startswith(self.prefix)], lines[-1]
-            elif res.status == 204:
-                return [], None
-            else:
-                raise RackspaceError(res)
+            data = res.read()
+        if res.status == 401 and not retry:
+            self.auth.create_token()
+            return self._list_messages_page(marker, retry=True)
+        if res.status == 200:
+            lines = data.splitlines()
+            return [line for line in lines
+                    if line.startswith(self.prefix)], lines[-1]
+        elif res.status == 204:
+            return [], None
+        else:
+            raise RackspaceError(res)
 
     def list_messages(self):
         marker = None
@@ -488,11 +489,11 @@ class RackspaceCloudQueues(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status == 401 and not retry:
-                self.auth.create_token()
-                return self.queue_message(storage_id, timestamp, retry=True)
-            elif res.status != 201:
-                raise RackspaceError(res)
+        if res.status == 401 and not retry:
+            self.auth.create_token()
+            return self.queue_message(storage_id, timestamp, retry=True)
+        elif res.status != 201:
+            raise RackspaceError(res)
 
     def _claim_queued_messages(self, retry=False):
         url = urljoin(self.auth.queues_endpoint+'/',
@@ -515,16 +516,17 @@ class RackspaceCloudQueues(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status == 401 and not retry:
-                self.auth.create_token()
-                return self._claim_queued_messages(retry=True)
-            if res.status == 201:
-                messages = json.load(res)
-                return [(msg['body'], msg['href']) for msg in messages]
-            elif res.status == 204:
-                return []
-            else:
-                raise RackspaceError(res)
+            data = res.read()
+        if res.status == 401 and not retry:
+            self.auth.create_token()
+            return self._claim_queued_messages(retry=True)
+        if res.status == 201:
+            messages = json.loads(data)
+            return [(msg['body'], msg['href']) for msg in messages]
+        elif res.status == 204:
+            return []
+        else:
+            raise RackspaceError(res)
 
     def poll(self):
         messages = self._claim_queued_messages()
@@ -552,11 +554,11 @@ class RackspaceCloudQueues(object):
             res = conn.getresponse()
             status = '{0!s} {1}'.format(res.status, res.reason)
             log.response(conn, status, res.getheaders())
-            if res.status == 401 and not retry:
-                self.auth.create_token()
-                return self.delete(href, retry=True)
-            elif res.status != 204:
-                raise RackspaceError(res)
+        if res.status == 401 and not retry:
+            self.auth.create_token()
+            return self.delete(href, retry=True)
+        elif res.status != 204:
+            raise RackspaceError(res)
 
 
 # vim:et:fdm=marker:sts=4:sw=4:ts=4
