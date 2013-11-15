@@ -78,19 +78,23 @@ class SimpleStorageService(object):
     :class:`~slimta.cloudstorage.CloudStorage` constructor for the ``storage``
     parameter to use *S3* as the storage backend.
 
+    Keys added to the bucket are generated with ``prefix + str(uuid.uuid4())``.
+
     :param bucket: The S3 bucket object in which all message contents and
                    metadata will be written. Each created S3 object will use a
                    :py:mod:`uuid` string as its key.
     :type bucket: :class:`boto.s3.bucket.Bucket`
     :param timeout: Timeout, in seconds, before requests to *S3* will fail and
                     raise an exception.
+    :param prefix: The string prefixed to every key added to the bucket.
 
     """
 
-    def __init__(self, bucket, timeout=None):
+    def __init__(self, bucket, timeout=None, prefix=''):
         super(SimpleStorageService, self).__init__()
         self.bucket = bucket
         self.timeout = timeout
+        self.prefix = prefix
         self.Key = Key
 
     def _get_key(self, id):
@@ -101,7 +105,7 @@ class SimpleStorageService(object):
 
     def write_message(self, envelope, timestamp):
         key = self.Key(self.bucket)
-        key.key = str(uuid.uuid4())
+        key.key = self.prefix+str(uuid.uuid4())
         envelope_raw = cPickle.dumps(envelope, cPickle.HIGHEST_PROTOCOL)
         with gevent.Timeout(self.timeout):
             key.set_metadata('timestamp', json.dumps(timestamp))
@@ -144,7 +148,7 @@ class SimpleStorageService(object):
 
     def list_messages(self):
         with gevent.Timeout(self.timeout):
-            ids = list(self.bucket.list())
+            ids = list(self.bucket.list(self.prefix))
         for id in ids:
             timestamp, attempts = self.get_message_meta(id)
             yield (timestamp, id)

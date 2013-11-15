@@ -240,6 +240,9 @@ class RackspaceCloudFiles(object):
     :class:`~slimta.cloudstorage.CloudStorage` constructor for the ``storage``
     parameter to use `Cloud Files`_ as the storage backend.
 
+    Keys added to the container are generated with
+    ``prefix + str(uuid.uuid4())``.
+
     :param auth: The :class:`RackspaceCloudAuth` object used to manage tokens
                  this service.
     :param container: The Cloud Files container name to use. The files in this
@@ -249,15 +252,18 @@ class RackspaceCloudFiles(object):
     :param tls: Optional dictionary of TLS settings passed directly as keyword
                 arguments to :class:`gevent.ssl.SSLSocket`. This is only used
                 for URLs with the ``https`` scheme.
+    :param prefix: The string prefixed to every key added to the bucket.
 
     """
 
-    def __init__(self, auth, container='slimta-queue', timeout=None, tls=None):
+    def __init__(self, auth, container='slimta-queue', timeout=None, tls=None,
+                 prefix=''):
         super(RackspaceCloudFiles, self).__init__()
         self.get_connection = get_connection
         self.auth = auth
         self.container = container
         self.timeout = timeout
+        self.prefix = prefix
         self.tls = tls or {}
 
     def _get_files_url(self, files_id=None):
@@ -268,7 +274,7 @@ class RackspaceCloudFiles(object):
 
     def write_message(self, envelope, timestamp, retry=False):
         envelope_raw = cPickle.dumps(envelope, cPickle.HIGHEST_PROTOCOL)
-        files_id = str(uuid.uuid4())
+        files_id = self.prefix + str(uuid.uuid4())
         url = self._get_files_url(files_id)
         parsed_url = urlsplit(str(url), 'http')
         conn = self.get_connection(parsed_url, self.tls)
@@ -403,9 +409,11 @@ class RackspaceCloudFiles(object):
                 self.auth.create_token()
                 return self._list_messages_page(marker, retry=True)
             if res.status == 200:
-                return res.read().splitlines()
+                lines = res.read().splitlines()
+                return [line for line in lines
+                        if line.startswith(self.prefix)], lines[-1]
             elif res.status == 204:
-                return []
+                return [], None
             else:
                 raise RackspaceError(res)
 
@@ -413,10 +421,8 @@ class RackspaceCloudFiles(object):
         marker = None
         ids = []
         while True:
-            ids_batch = self._list_messages_page(marker)
-            try:
-                marker = ids_batch[-1]
-            except IndexError:
+            ids_batch, marker = self._list_messages_page(marker)
+            if not marker:
                 break
             ids.extend(ids_batch)
         for id in ids:

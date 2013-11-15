@@ -19,7 +19,7 @@ class TestSimpleStorageService(MoxTestBase):
         super(TestSimpleStorageService, self).setUp()
         self.bucket = self.mox.CreateMock(Bucket)
         self.key = self.mox.CreateMock(Key)
-        self.s3 = SimpleStorageService(self.bucket)
+        self.s3 = SimpleStorageService(self.bucket, prefix='test-')
         self.s3.Key = self.mox.CreateMockAnything()
         self.env = Envelope('sender@example.com', ['rcpt@example.com'])
         self.pickled_env = cPickle.dumps(self.env, cPickle.HIGHEST_PROTOCOL)
@@ -32,6 +32,7 @@ class TestSimpleStorageService(MoxTestBase):
         self.mox.ReplayAll()
         self.s3.write_message(self.env, 1234.0)
         self.assertIsInstance(self.key.key, basestring)
+        self.assertTrue(self.key.key.startswith('test-'))
 
     def test_set_message_meta(self):
         self.bucket.get_key('storeid').AndReturn(self.key)
@@ -69,12 +70,12 @@ class TestSimpleStorageService(MoxTestBase):
 
     def test_list_messages(self):
         self.mox.StubOutWithMock(self.s3, 'get_message_meta')
-        self.bucket.list().AndReturn(['storeid1', 'storeid2'])
-        self.s3.get_message_meta('storeid1').AndReturn((1234.0, 1))
-        self.s3.get_message_meta('storeid2').AndReturn((5678.0, 2))
+        self.bucket.list('test-').AndReturn(['test-storeid1', 'test-storeid2'])
+        self.s3.get_message_meta('test-storeid1').AndReturn((1234.0, 1))
+        self.s3.get_message_meta('test-storeid2').AndReturn((5678.0, 2))
         self.mox.ReplayAll()
         ret = list(self.s3.list_messages())
-        self.assertEqual([(1234.0, 'storeid1'), (5678.0, 'storeid2')], ret)
+        self.assertEqual([(1234.0, 'test-storeid1'), (5678.0, 'test-storeid2')], ret)
 
 
 class TestSimpleQueueService(MoxTestBase):

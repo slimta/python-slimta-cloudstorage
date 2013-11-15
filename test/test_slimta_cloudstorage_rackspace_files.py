@@ -128,7 +128,7 @@ class TestRackspaceCloudFiles(MoxTestBase):
         self.assertEqual(3, attempts)
 
     def test_list_messages_page(self):
-        files = RackspaceCloudFiles(self.auth, container='test')
+        files = RackspaceCloudFiles(self.auth, container='test', prefix='test-')
         conn = self.mox.CreateMockAnything()
         res = self.mox.CreateMockAnything()
         self.mox.StubOutWithMock(files, 'get_connection')
@@ -141,17 +141,17 @@ class TestRackspaceCloudFiles(MoxTestBase):
         res.status = 200
         res.reason = 'OK'
         res.getheaders().AndReturn([])
-        res.read().AndReturn('one\ntwo\nthree')
+        res.read().AndReturn('test-one\ntest-two\ntest-three\nfour')
         self.mox.ReplayAll()
-        lines = files._list_messages_page('marker')
-        self.assertEqual(['one', 'two', 'three'], lines)
+        lines, marker = files._list_messages_page('marker')
+        self.assertEqual(['test-one', 'test-two', 'test-three'], lines)
 
     def test_list_messages(self):
         files = RackspaceCloudFiles(self.auth, container='test')
         self.mox.StubOutWithMock(files, '_list_messages_page')
         self.mox.StubOutWithMock(files, 'get_message_meta')
-        files._list_messages_page(None).AndReturn(['one', 'two'])
-        files._list_messages_page('two').AndReturn([])
+        files._list_messages_page(None).AndReturn((['one', 'two'], 'two'))
+        files._list_messages_page('two').AndReturn(([], None))
         files.get_message_meta('one').AndReturn((1234.0, 0))
         files.get_message_meta('two').AndReturn((5678.0, 0))
         self.mox.ReplayAll()
