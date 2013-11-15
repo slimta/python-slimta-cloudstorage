@@ -93,19 +93,24 @@ class SimpleStorageService(object):
         self.timeout = timeout
         self.Key = Key
 
+    def _get_key(self, id):
+        key = self.bucket.get_key(id)
+        if not key:
+            raise KeyError(id)
+        return key
+
     def write_message(self, envelope, timestamp):
         key = self.Key(self.bucket)
         key.key = str(uuid.uuid4())
         envelope_raw = cPickle.dumps(envelope, cPickle.HIGHEST_PROTOCOL)
         with gevent.Timeout(self.timeout):
-            key.set_contents_from_string(envelope_raw)
             key.set_metadata('timestamp', json.dumps(timestamp))
             key.set_metadata('attempts', '0')
+            key.set_contents_from_string(envelope_raw)
         return key.key
 
     def set_message_meta(self, id, timestamp=None, attempts=None):
-        key = self.Key(self.bucket)
-        key.key = id
+        key = self._get_key(id)
         with gevent.Timeout(self.timeout):
             if timestamp is not None:
                 key.set_metadata('timestamp', json.dumps(timestamp))
@@ -113,14 +118,12 @@ class SimpleStorageService(object):
                 key.set_metadata('attempts', json.dumps(attempts))
 
     def delete_message(self, id):
-        key = self.Key(self.bucket)
-        key.key = id
+        key = self._get_key(id)
         with gevent.Timeout(self.timeout):
             key.delete()
 
     def get_message(self, id):
-        key = self.Key(self.bucket)
-        key.key = id
+        key = self._get_key(id)
         with gevent.Timeout(self.timeout):
             envelope_raw = key.get_contents_as_string()
             timestamp_raw = key.get_metadata('timestamp')
@@ -131,8 +134,7 @@ class SimpleStorageService(object):
         return envelope, timestamp, attempts
 
     def get_message_meta(self, id):
-        key = self.Key(self.bucket)
-        key.key = id
+        key = self._get_key(id)
         with gevent.Timeout(self.timeout):
             timestamp_raw = key.get_metadata('timestamp')
             attempts_raw = key.get_metadata('attempts')

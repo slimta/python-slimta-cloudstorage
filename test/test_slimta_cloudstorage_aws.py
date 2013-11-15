@@ -26,48 +26,44 @@ class TestSimpleStorageService(MoxTestBase):
 
     def test_write_message(self):
         self.s3.Key.__call__(self.bucket).AndReturn(self.key)
-        self.key.set_contents_from_string(self.pickled_env)
         self.key.set_metadata('timestamp', '1234.0')
         self.key.set_metadata('attempts', '0')
+        self.key.set_contents_from_string(self.pickled_env)
         self.mox.ReplayAll()
         self.s3.write_message(self.env, 1234.0)
         self.assertIsInstance(self.key.key, basestring)
 
     def test_set_message_meta(self):
-        self.s3.Key.__call__(self.bucket).AndReturn(self.key)
+        self.bucket.get_key('storeid').AndReturn(self.key)
         self.key.set_metadata('timestamp', '5678.0')
         self.key.set_metadata('attempts', '3')
         self.mox.ReplayAll()
         self.s3.set_message_meta('storeid', 5678.0, 3)
-        self.assertEqual('storeid', self.key.key)
 
     def test_delete_message(self):
-        self.s3.Key.__call__(self.bucket).AndReturn(self.key)
+        self.bucket.get_key('storeid').AndReturn(self.key)
         self.key.delete()
         self.mox.ReplayAll()
         self.s3.delete_message('storeid')
-        self.assertEqual('storeid', self.key.key)
 
     def test_get_message(self):
-        self.s3.Key.__call__(self.bucket).AndReturn(self.key)
+        self.bucket.get_key('storeid').AndReturn(self.key)
         self.key.get_contents_as_string().AndReturn(self.pickled_env)
         self.key.get_metadata('timestamp').AndReturn('4321.0')
         self.key.get_metadata('attempts').AndReturn('5')
         self.mox.ReplayAll()
         env, timestamp, attempts = self.s3.get_message('storeid')
-        self.assertEqual('storeid', self.key.key)
         self.assertEqual('sender@example.com', env.sender)
         self.assertEqual(['rcpt@example.com'], env.recipients)
         self.assertEqual(4321.0, timestamp)
         self.assertEqual(5, attempts)
 
     def test_get_message_meta(self):
-        self.s3.Key.__call__(self.bucket).AndReturn(self.key)
+        self.bucket.get_key('storeid').AndReturn(self.key)
         self.key.get_metadata('timestamp').AndReturn('4321.0')
         self.key.get_metadata('attempts').AndReturn('5')
         self.mox.ReplayAll()
         timestamp, attempts = self.s3.get_message_meta('storeid')
-        self.assertEqual('storeid', self.key.key)
         self.assertEqual(4321.0, timestamp)
         self.assertEqual(5, attempts)
 
