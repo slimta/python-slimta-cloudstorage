@@ -14,7 +14,7 @@ class TestCloudStorage(MoxTestBase):
         self.msg_queue = self.mox.CreateMockAnything()
 
     def test_exception_inheritance(self):
-        self.assertIsInstance(CloudStorageError(), QueueError)
+        self.assertTrue(isinstance(CloudStorageError(), QueueError))
 
     def test_write(self):
         env = Envelope('sender@example.com', ['rcpt@example.com'])
@@ -83,8 +83,7 @@ class TestCloudStorage(MoxTestBase):
     def test_wait_no_msg_queue(self):
         self.mox.ReplayAll()
         storage = CloudStorage(self.obj_store)
-        with self.assertRaises(NotImplementedError):
-            list(storage.wait())
+        self.assertRaises(NotImplementedError, list, storage.wait())
 
 
 # vim:et:fdm=marker:sts=4:sw=4:ts=4

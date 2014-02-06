@@ -4,6 +4,7 @@ import cPickle
 
 from mox import MoxTestBase, IsA
 import gevent
+
 from boto.s3.bucket import Bucket
 from boto.s3.key import Key
 from boto.sqs.queue import Queue
@@ -31,7 +32,7 @@ class TestSimpleStorageService(MoxTestBase):
         self.key.set_contents_from_string(self.pickled_env)
         self.mox.ReplayAll()
         self.s3.write_message(self.env, 1234.0)
-        self.assertIsInstance(self.key.key, basestring)
+        self.assertTrue(isinstance(self.key.key, basestring))
         self.assertTrue(self.key.key.startswith('test-'))
 
     def test_set_message_meta(self):

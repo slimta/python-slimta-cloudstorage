@@ -100,7 +100,7 @@ class TestRackspaceCloudFiles(MoxTestBase):
         res.getheader('X-Object-Meta-Attempts').AndReturn('3')
         self.mox.ReplayAll()
         env, timestamp, attempts = files.get_message('4321')
-        self.assertIsInstance(env, Envelope)
+        self.assertTrue(isinstance(env, Envelope))
         self.assertEqual('sender@example.com', env.sender)
         self.assertEqual(['rcpt@example.com'], env.recipients)
         self.assertEqual(1234.0, timestamp)
