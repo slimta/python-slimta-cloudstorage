@@ -114,9 +114,9 @@ class RackspaceCloudAuth(object):
     :type credentials: dict
     :param endpoint: If given, this is the Rackspace Cloud Auth endpoint to hit
                      when creating tokens.
-    :param region: When discovering API endpoints from the service catalog, this
-                   is the endpoint region to use, e.g. ``IAD`` or ``HKG``. If
-                   not given, the first region returned is used.
+    :param region: When discovering API endpoints from the service catalog,
+                   this is the endpoint region to use, e.g. ``IAD`` or ``HKG``.
+                   If not given, the first region returned is used.
     :param timeout: Timeout, in seconds, for requests to the Cloud Auth API to
                     create a new token for the session.
     :param tls: Optional dictionary of TLS settings passed directly as keyword
@@ -247,8 +247,8 @@ class RackspaceCloudFiles(object):
                  this service.
     :param container: The Cloud Files container name to use. The files in this
                       container will be named with random UUID strings.
-    :param timeout: Timeout, in seconds, for all requests to the Cloud Files API
-                    to return before an exception is thrown.
+    :param timeout: Timeout, in seconds, for all requests to the Cloud Files
+                    API to return before an exception is thrown.
     :param tls: Optional dictionary of TLS settings passed directly as keyword
                 arguments to :class:`gevent.ssl.SSLSocket`. This is only used
                 for URLs with the ``https`` scheme.

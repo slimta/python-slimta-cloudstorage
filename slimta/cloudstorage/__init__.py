@@ -60,9 +60,9 @@ class CloudStorage(QueueStorage):
                          :class:`~rackspace.RackspaceCloudFiles` or
                          :class:`~aws.SimpleStorageService`.
     :param message_queue: The optional object used
-                          as the backend for alerting other processes that a new
-                          message is in the object store. Currently this can be
-                          an instance of
+                          as the backend for alerting other processes that a
+                          new message is in the object store. Currently this
+                          can be an instance of
                           :class:`~rackspace.RackspaceCloudQueues` or
                           :class:`~aws.SimpleQueueService`.
 
