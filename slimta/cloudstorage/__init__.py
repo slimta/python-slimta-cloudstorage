@@ -88,18 +88,27 @@ class CloudStorage(QueueStorage):
         log.update_meta(id, timestamp=timestamp)
 
     def increment_attempts(self, id):
-        timestamp, attempts = self.obj_store.get_message_meta(id)
-        new_attempts = attempts + 1
+        meta = self.obj_store.get_message_meta(id)
+        new_attempts = meta['attempts'] + 1
         self.obj_store.set_message_meta(id, attempts=new_attempts)
         log.update_meta(id, attempts=new_attempts)
         return new_attempts
+
+    def set_recipients_delivered(self, id, rcpt_indexes):
+        meta = self.obj_store.get_message_meta(id)
+        current = meta.get('delivered_indexes', [])
+        new = current + rcpt_indexes
+        self.obj_store.set_message_meta(id, delivered_indexes=new)
+        log.update_meta(id, delivered_indexes=rcpt_indexes)
 
     def load(self):
         return self.obj_store.list_messages()
 
     def get(self, id):
-        envelope, timestamp, attempts = self.obj_store.get_message(id)
-        return envelope, attempts
+        envelope, meta = self.obj_store.get_message(id)
+        delivered_rcpts = meta.get('delivered_indexes', [])
+        self._remove_delivered_rcpts(envelope, delivered_rcpts)
+        return envelope, meta.get('attempts', 0)
 
     def remove(self, id):
         self.obj_store.delete_message(id)

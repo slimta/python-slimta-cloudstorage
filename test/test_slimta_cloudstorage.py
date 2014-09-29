@@ -46,7 +46,8 @@ class TestCloudStorage(MoxTestBase):
         storage.set_timestamp('testid', 1234.0)
 
     def test_increment_attempts(self):
-        self.obj_store.get_message_meta('testid').AndReturn((1234.0, 3))
+        self.obj_store.get_message_meta('testid').AndReturn(
+            {'attempts': 3})
         self.obj_store.set_message_meta('testid', attempts=4)
         self.mox.ReplayAll()
         storage = CloudStorage(self.obj_store, self.msg_queue)
@@ -59,11 +60,17 @@ class TestCloudStorage(MoxTestBase):
         self.assertEqual(['1', '2', '3'], storage.load())
 
     def test_get(self):
-        env = Envelope('sender@example.com', ['rcpt@example.com'])
-        self.obj_store.get_message('testid').AndReturn((env, 1234.0, 3))
+        env = Envelope('sender@example.com', ['rcpt1@example.com',
+                                              'rcpt2@example.com'])
+        self.obj_store.get_message('testid').AndReturn(
+            (env, {'attempts': 3,
+                   'delivered_indexes': [0]}))
         self.mox.ReplayAll()
         storage = CloudStorage(self.obj_store, self.msg_queue)
-        self.assertEqual((env, 3), storage.get('testid'))
+        env, attempts = storage.get('testid')
+        self.assertEqual('sender@example.com', env.sender)
+        self.assertEqual(['rcpt2@example.com'], env.recipients)
+        self.assertEqual(3, attempts)
 
     def test_remove(self):
         self.obj_store.delete_message('testid')

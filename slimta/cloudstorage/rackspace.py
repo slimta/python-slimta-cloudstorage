@@ -70,6 +70,10 @@ log = logging.getHttpLogger(__name__)
 _DEFAULT_AUTH_ENDPOINT = 'https://identity.api.rackspacecloud.com/v2.0/'
 _DEFAULT_CLIENT_ID = str(uuid.uuid5(uuid.NAMESPACE_DNS, getfqdn()))
 
+_TIMESTAMP_HDR = 'X-Object-Meta-Timestamp'
+_ATTEMPTS_HDR = 'X-Object-Meta-Attempts'
+_DELIVERED_RCPTS_HDR = 'X-Object-Meta-Delivered-Rcpts'
+
 
 class RackspaceError(CloudStorageError):
     """Thrown when an unexpected status has been returned from a Rackspace
@@ -281,8 +285,7 @@ class RackspaceCloudFiles(object):
         headers = [('Host', parsed_url.hostname),
                    ('Content-Type', 'application/octet-stream'),
                    ('Content-Length', str(len(envelope_raw))),
-                   ('X-Object-Meta-Timestamp', json.dumps(timestamp)),
-                   ('X-Object-Meta-Attempts', '0'),
+                   (_TIMESTAMP_HDR, json.dumps(timestamp)),
                    ('X-Auth-Token', self.auth.token_id)]
         with gevent.Timeout(self.timeout):
             log.request(conn, 'PUT', parsed_url.path, headers)
@@ -321,14 +324,18 @@ class RackspaceCloudFiles(object):
         elif res.status != 202:
             raise RackspaceError(res)
 
-    def set_message_meta(self, files_id, timestamp=None, attempts=None):
+    def set_message_meta(self, files_id, timestamp=None, attempts=None,
+                         delivered_indexes=None):
         meta_headers = []
         if timestamp is not None:
             timestamp_raw = json.dumps(timestamp)
-            meta_headers.append(('X-Object-Meta-Timestamp', timestamp_raw))
+            meta_headers.append((_TIMESTAMP_HDR, timestamp_raw))
         if attempts is not None:
             attempts_raw = json.dumps(attempts)
-            meta_headers.append(('X-Object-Meta-Attempts', attempts_raw))
+            meta_headers.append((_ATTEMPTS_HDR, attempts_raw))
+        if delivered_indexes is not None:
+            delivered_raw = json.dumps(delivered_indexes)
+            meta_headers.append((_DELIVERED_RCPTS_HDR, delivered_raw))
         return self._write_message_meta(files_id, meta_headers)
 
     def delete_message(self, files_id, retry=False):
@@ -375,13 +382,19 @@ class RackspaceCloudFiles(object):
             raise KeyError(files_id)
         elif res.status != 200:
             raise RackspaceError(res)
-        timestamp = json.loads(res.getheader('X-Object-Meta-Timestamp'))
-        attempts = json.loads(res.getheader('X-Object-Meta-Attempts'))
+        timestamp_raw = res.getheader(_TIMESTAMP_HDR)
+        attempts_raw = res.getheader(_ATTEMPTS_HDR, None)
+        delivered_raw = res.getheader(_DELIVERED_RCPTS_HDR, None)
+        meta = {'timestamp': json.loads(timestamp_raw)}
+        if attempts_raw:
+            meta['attempts'] = json.loads(attempts_raw)
+        if delivered_raw:
+            meta['delivered_indexes'] = json.loads(delivered_raw)
         if only_meta:
-            return timestamp, attempts
+            return meta
         else:
             envelope = cPickle.loads(data)
-            return envelope, timestamp, attempts
+            return envelope, meta
 
     def get_message_meta(self, files_id):
         return self.get_message(files_id, only_meta=True)

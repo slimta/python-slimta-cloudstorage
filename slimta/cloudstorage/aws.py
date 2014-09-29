@@ -109,17 +109,22 @@ class SimpleStorageService(object):
         envelope_raw = cPickle.dumps(envelope, cPickle.HIGHEST_PROTOCOL)
         with gevent.Timeout(self.timeout):
             key.set_metadata('timestamp', json.dumps(timestamp))
-            key.set_metadata('attempts', '0')
+            key.set_metadata('attempts', '')
+            key.set_metadata('delivered_indexes', '')
             key.set_contents_from_string(envelope_raw)
         return key.key
 
-    def set_message_meta(self, id, timestamp=None, attempts=None):
+    def set_message_meta(self, id, timestamp=None, attempts=None,
+                         delivered_indexes=None):
         key = self._get_key(id)
         with gevent.Timeout(self.timeout):
             if timestamp is not None:
                 key.set_metadata('timestamp', json.dumps(timestamp))
             if attempts is not None:
                 key.set_metadata('attempts', json.dumps(attempts))
+            if delivered_indexes is not None:
+                key.set_metadata('delivered_indexes',
+                                 json.dumps(delivered_indexes))
 
     def delete_message(self, id):
         key = self._get_key(id)
@@ -132,19 +137,27 @@ class SimpleStorageService(object):
             envelope_raw = key.get_contents_as_string()
             timestamp_raw = key.get_metadata('timestamp')
             attempts_raw = key.get_metadata('attempts')
+            delivered_raw = key.get_metadata('delivered_indexes')
         envelope = cPickle.loads(envelope_raw)
-        timestamp = json.loads(timestamp_raw)
-        attempts = json.loads(attempts_raw)
-        return envelope, timestamp, attempts
+        meta = {'timestamp': json.loads(timestamp_raw)}
+        if attempts_raw:
+            meta['attempts'] = json.loads(attempts_raw)
+        if delivered_raw:
+            meta['delivered_indexes'] = json.loads(delivered_raw)
+        return envelope, meta
 
     def get_message_meta(self, id):
         key = self._get_key(id)
         with gevent.Timeout(self.timeout):
             timestamp_raw = key.get_metadata('timestamp')
             attempts_raw = key.get_metadata('attempts')
-        timestamp = json.loads(timestamp_raw)
-        attempts = json.loads(attempts_raw)
-        return timestamp, attempts
+            delivered_raw = key.get_metadata('delivered_indexes')
+        meta = {'timestamp': json.loads(timestamp_raw)}
+        if attempts_raw:
+            meta['attempts'] = json.loads(attempts_raw)
+        if delivered_raw:
+            meta['delivered_indexes'] = json.loads(delivered_raw)
+        return meta
 
     def list_messages(self):
         with gevent.Timeout(self.timeout):

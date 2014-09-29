@@ -23,7 +23,7 @@ from setuptools import setup, find_packages
 
 
 setup(name='python-slimta-cloudstorage',
-      version='0.1.1',
+      version='0.2.0',
       author='Ian Good',
       author_email='icgood@gmail.com',
       description='Queue storage backend interfacing with cloud providers.',
