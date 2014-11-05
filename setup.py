@@ -31,6 +31,7 @@ setup(name='python-slimta-cloudstorage',
       url='http://slimta.org/',
       packages=find_packages(),
       namespace_packages=['slimta'],
+      install_requires=['python-slimta >= 1.1.0'],
       extras_require={
               'aws': ['boto'],
           },
