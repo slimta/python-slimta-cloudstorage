@@ -35,8 +35,6 @@ setup(name='python-slimta-cloudstorage',
       extras_require={
               'aws': ['boto'],
           },
-      tests_require=['nose', 'mox'],
-      test_suite='nose.collector',
       classifiers=['Development Status :: 3 - Alpha',
                    'Topic :: Communications :: Email :: Mail Transport Agents',
                    'Intended Audience :: Developers',
