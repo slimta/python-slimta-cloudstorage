@@ -2,7 +2,7 @@
 import re
 import cPickle
 
-from mox import MoxTestBase, IsA, Func
+from mox3.mox import MoxTestBase, IsA, Func
 
 from slimta.envelope import Envelope
 from slimta.cloudstorage.rackspace import RackspaceCloudAuth, \

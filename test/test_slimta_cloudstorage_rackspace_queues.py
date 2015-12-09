@@ -2,7 +2,7 @@
 import json
 
 import gevent
-from mox import MoxTestBase, IsA, Func
+from mox3.mox import MoxTestBase, IsA, Func
 
 from slimta.cloudstorage.rackspace import RackspaceCloudAuth, \
         RackspaceCloudQueues

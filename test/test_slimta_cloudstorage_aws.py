@@ -2,7 +2,7 @@
 import json
 import cPickle
 
-from mox import MoxTestBase, IsA
+from mox3.mox import MoxTestBase, IsA
 import gevent
 
 from boto.s3.bucket import Bucket

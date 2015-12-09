@@ -1,7 +1,7 @@
 
 import json
 
-from mox import MoxTestBase, IsA, Func
+from mox3.mox import MoxTestBase, IsA, Func
 
 from slimta.cloudstorage.rackspace import RackspaceError, RackspaceCloudAuth
 
