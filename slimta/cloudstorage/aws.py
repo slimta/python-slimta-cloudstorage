@@ -60,15 +60,14 @@ it!
 
 from __future__ import absolute_import
 
-import cPickle
 import uuid
 import json
+
+from six.moves import cPickle
 
 import gevent
 from boto.s3.key import Key
 from boto.sqs.message import Message
-
-from . import CloudStorageError
 
 __all__ = ['SimpleStorageService', 'SimpleQueueService']
 

@@ -22,7 +22,7 @@ class TestRackspaceCloudQueues(MoxTestBase):
         res = self.mox.CreateMockAnything()
         self.mox.StubOutWithMock(queues, 'get_connection')
         queues.get_connection(IsA(tuple), {}).AndReturn(conn)
-        json_payload = json.dumps([{'ttl': 86400, 'body': {'timestamp': 1234.0, 'storage_id': 'asdf'}}])
+        json_payload = json.dumps([{'ttl': 86400, 'body': {'timestamp': 1234.0, 'storage_id': 'asdf'}}], sort_keys=True)
         conn.putrequest('POST', '/v1/queues/test/messages')
         conn.putheader('Host', 'queues')
         conn.putheader('Client-ID', 'test')

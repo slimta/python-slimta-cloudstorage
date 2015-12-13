@@ -1,8 +1,8 @@
 
 import re
-import cPickle
 
 from mox3.mox import MoxTestBase, IsA, Func
+from six.moves import cPickle
 
 from slimta.envelope import Envelope
 from slimta.cloudstorage.rackspace import RackspaceCloudAuth, \

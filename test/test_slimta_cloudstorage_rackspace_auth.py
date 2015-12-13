@@ -58,12 +58,12 @@ class TestRackspaceCloudAuth(MoxTestBase):
         conn.putheader('Content-Type', 'application/json')
         conn.putheader('Content-Length', '83')
         conn.putheader('Accept', 'application/json')
-        conn.endheaders('{"auth": {"passwordCredentials": {"username": "testuser", "password": "testpass"}}}')
+        conn.endheaders('{"auth": {"passwordCredentials": {"password": "testpass", "username": "testuser"}}}')
         res.status = 200
         res.reason = 'OK'
         conn.getresponse().AndReturn(res)
         res.getheaders().AndReturn([])
-        res.read().AndReturn(json.dumps(self.response_payload))
+        res.read().AndReturn(json.dumps(self.response_payload, sort_keys=True))
         self.mox.ReplayAll()
         self.assertEqual('tokenid', auth.token_id)
         self.assertEqual('http://files/v1', auth.files_endpoint)
@@ -80,12 +80,12 @@ class TestRackspaceCloudAuth(MoxTestBase):
         conn.putheader('Content-Type', 'application/json')
         conn.putheader('Content-Length', '88')
         conn.putheader('Accept', 'application/json')
-        conn.endheaders('{"auth": {"RAX-KSKEY:apiKeyCredentials": {"username": "testuser", "apiKey": "testkey"}}}')
+        conn.endheaders('{"auth": {"RAX-KSKEY:apiKeyCredentials": {"apiKey": "testkey", "username": "testuser"}}}')
         res.status = 200
         res.reason = 'OK'
         conn.getresponse().AndReturn(res)
         res.getheaders().AndReturn([])
-        res.read().AndReturn(json.dumps(self.response_payload))
+        res.read().AndReturn(json.dumps(self.response_payload, sort_keys=True))
         self.mox.ReplayAll()
         self.assertEqual('tokenid', auth.token_id)
         self.assertEqual('http://files/v1', auth.files_endpoint)

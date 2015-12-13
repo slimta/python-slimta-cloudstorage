@@ -48,13 +48,13 @@ happening in the same process, *Cloud Queues* is unnecessary.
 
 from __future__ import absolute_import
 
-import cPickle
 import uuid
 import json
 from socket import getfqdn
-from urlparse import urlsplit, urljoin
-from urllib import urlencode
 from functools import partial
+
+from six.moves import cPickle
+from six.moves.urllib.parse import urlsplit, urljoin, urlencode
 
 import gevent
 
@@ -170,7 +170,7 @@ class RackspaceCloudAuth(object):
         full_url = urljoin(url+'/', 'tokens')
         parsed_url = urlsplit(full_url, 'http')
         conn = self.get_connection(parsed_url, self.tls)
-        json_payload = json.dumps(payload)
+        json_payload = json.dumps(payload, sort_keys=True)
         headers = [('Host', parsed_url.hostname),
                    ('Content-Type', 'application/json'),
                    ('Content-Length', str(len(json_payload))),
@@ -486,7 +486,7 @@ class RackspaceCloudQueues(object):
         payload = [{'ttl': 86400,
                     'body': {'timestamp': timestamp,
                              'storage_id': storage_id}}]
-        json_payload = json.dumps(payload)
+        json_payload = json.dumps(payload, sort_keys=True)
         headers = [('Host', parsed_url.hostname),
                    ('Client-ID', self.client_id),
                    ('Content-Type', 'application/json'),
