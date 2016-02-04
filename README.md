@@ -10,7 +10,8 @@ This extension provides a queue storage mechanism that interfaces with two
 common cloud service providers: [Rackspace Cloud][4] and [Amazon Web
 Services][5].
 
-[![Build Status](http://ci.slimta.org/job/python-slimta-cloudstorage/badge/icon)](http://ci.slimta.org/job/python-slimta-cloudstorage/)
+[![Build Status](https://travis-ci.org/slimta/python-slimta-cloudstorage.svg?branch=master)](https://travis-ci.org/slimta/python-slimta-cloudstorage)
+[![Coverage Status](https://coveralls.io/repos/github/slimta/python-slimta-cloudstorage/badge.svg?branch=master)](https://coveralls.io/github/slimta/python-slimta-cloudstorage?branch=master)
 
 Getting Started
 ===============
@@ -22,7 +23,7 @@ Started" section. Once inside your virtualenv:
 
 To run the suite of included unit tests:
 
-    (.venv)$ nosetests
+    (.venv)$ py.test
 
 Refer to the [API Documentation][2] and [Manual][3] for more information on
 using this extension.
