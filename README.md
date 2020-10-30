@@ -3,6 +3,8 @@
 
 --------------------
 
+### NOTE: This library has been [moved](https://www.slimta.org/blog/2020-10-30.html) into [python-slimta](https://github.com/slimta/python-slimta).
+
 About
 =====
 
